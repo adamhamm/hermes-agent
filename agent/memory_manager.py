@@ -13,6 +13,7 @@ import logging
 import re
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from contextlib import suppress
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional
 
@@ -844,6 +845,45 @@ class MemoryManager:
             "on_delegation failed",
             lambda p: p.on_delegation(task, result, child_session_id=child_session_id, **kwargs),
         )
+
+    @staticmethod
+    def build_standalone(session_id: str, *, platform: str = "cli",
+                          agent_context: str = "primary") -> Optional["MemoryManager"]:
+        """Load+initialize the configured external memory provider (``memory.provider``)
+        with no live agent — for contexts that apply writes against a fresh on-disk store
+        (``/memory approve`` in the gateway/CLI/Desktop; see ``notify_memory_tool_write``'s
+        docstring for the live-agent path this mirrors). Returns None if unconfigured,
+        unavailable, or failed; never raises (approval must not fail on a provider hiccup).
+        """
+        try:
+            from hermes_cli.config import load_config
+            from tools.memory_tool import get_builtin_memory_config
+            provider_name = (get_builtin_memory_config(load_config() or {}).get("provider") or "").strip()
+            if not provider_name:
+                return None
+            from hermes_constants import get_hermes_home
+            from plugins.memory import load_memory_provider
+            mp = load_memory_provider(provider_name)
+            if mp is None:
+                from hermes_cli.memory_provider_migration import recover_at_startup
+                if recover_at_startup(provider_name):
+                    mp = load_memory_provider(provider_name)
+            if mp is None or not mp.is_available():
+                if mp is not None:
+                    reason = ""
+                    with suppress(Exception):
+                        reason = mp.unavailable_reason()
+                    logger.warning("Memory provider %r is selected but reports unavailable%s",
+                                   provider_name, f": {reason}" if reason else "")
+                return None
+            manager = MemoryManager()
+            manager.add_provider(mp)
+            manager.initialize_all(session_id=session_id, platform=platform,
+                                    hermes_home=str(get_hermes_home()), agent_context=agent_context)
+            return manager if manager.providers else None
+        except Exception as e:
+            logger.warning("Standalone memory provider init failed: %s", e)
+            return None
 
     def shutdown_all(self) -> None:
         """Drain the background executor (bounded), then shut providers down in reverse order."""

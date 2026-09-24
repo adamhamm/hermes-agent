@@ -76,6 +76,15 @@ def _approve(subsystem: str, rest: List[str], memory_store) -> str:
             return f"No pending {subsystem} write with id '{target}'."
         targets = [rec]
 
+    # Approval applies through a fresh on-disk store (no live agent here), so the external
+    # mirror that normally rides the agent loop's notify_memory_tool_write (agent/inline_tool_
+    # executors.py::_memory) never fires for this path — approved writes silently never reached
+    # the configured memory.provider. One manager, built lazily and reused across this batch.
+    memory_manager = None
+    if subsystem == wa.MEMORY:
+        from agent.memory_manager import MemoryManager
+        memory_manager = MemoryManager.build_standalone(session_id=f"write-approval-{wa.MEMORY}")
+
     applied, failed, overwritten, removed = 0, [], [], []
     for rec in targets:
         ok, msg, result = _apply_one(subsystem, rec, memory_store)
@@ -84,8 +93,16 @@ def _approve(subsystem: str, rest: List[str], memory_store) -> str:
             applied += 1
             overwritten.extend(f"  {rec['id']}: {text}" for text in _changed_entries(result, "replaced"))
             removed.extend(f"  {rec['id']}: {text}" for text in _changed_entries(result, "removed"))
+            if memory_manager is not None:
+                memory_manager.notify_memory_tool_write(
+                    result, rec.get("payload", {}),
+                    build_metadata=lambda origin=rec.get("origin", "foreground"), pid=rec["id"]:
+                        {"origin": origin, "pending_id": pid})
         else:
             failed.append(f"{rec['id']}: {msg}")
+
+    if memory_manager is not None:
+        memory_manager.shutdown_all()
 
     out = [f"Approved {applied} {subsystem} write(s)."]
     if overwritten:

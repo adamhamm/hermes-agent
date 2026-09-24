@@ -173,3 +173,51 @@ def test_previous_content_cannot_come_from_uncommitted_arguments():
         {'success': True}, args, build_metadata=lambda: {'previous_content': 'Uncommitted metadata'}
     )
     assert provider.calls[0]['metadata'] == {'old_text': 'partial'}
+
+
+# ---------------------------------------------------------------------------
+# MemoryManager.build_standalone — used by /memory approve (no live agent) to
+# reach the same external-provider mirror the agent loop gets for free via
+# agent._memory_manager. See hermes_cli/write_approval_commands.py::_approve.
+# ---------------------------------------------------------------------------
+
+def test_build_standalone_returns_none_when_no_provider_configured(monkeypatch, tmp_path):
+    import os
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+    assert MemoryManager.build_standalone(session_id="s1") is None
+
+
+def test_build_standalone_returns_none_when_provider_unavailable(monkeypatch, tmp_path):
+    import os
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+
+    from hermes_cli import config as cfg
+    c = cfg.load_config()
+    c.setdefault("memory", {})["provider"] = "nonexistent-provider-xyz"
+    cfg.save_config(c)
+
+    assert MemoryManager.build_standalone(session_id="s1") is None
+
+
+def test_build_standalone_loads_and_initializes_configured_provider(monkeypatch, tmp_path):
+    import os
+    home = tmp_path / ".hermes"
+    home.mkdir()
+    monkeypatch.setenv("HERMES_HOME", str(home))
+
+    from hermes_cli import config as cfg
+    c = cfg.load_config()
+    c.setdefault("memory", {})["provider"] = "holographic"
+    cfg.save_config(c)
+
+    mgr = MemoryManager.build_standalone(session_id="s1")
+    try:
+        assert mgr is not None
+        assert [p.name for p in mgr.providers] == ["holographic"]
+    finally:
+        if mgr is not None:
+            mgr.shutdown_all()
