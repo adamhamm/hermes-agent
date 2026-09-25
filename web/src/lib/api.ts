@@ -1364,6 +1364,12 @@ export const api = {
     }),
   getSystemStats: () => fetchJSON<SystemStats>("/api/system/stats"),
 
+  // Command Center news feed (RSS/Atom aggregated server-side, cached 15 min)
+  getNews: (opts: { refresh?: boolean; limit?: number } = {}) =>
+    fetchJSON<NewsResponse>(
+      `/api/news?limit=${opts.limit ?? 40}${opts.refresh ? "&refresh=true" : ""}`,
+    ),
+
   // ── Admin: Curator ──────────────────────────────────────────────────
   getCurator: () => fetchJSON<CuratorStatus>("/api/curator"),
   setCuratorPaused: (paused: boolean) =>
@@ -1916,6 +1922,30 @@ export interface SystemStats {
   memory?: { total: number; available: number; used: number; percent: number };
   disk?: { total: number; used: number; free: number; percent: number };
   process?: { pid: number; rss: number; create_time: number; num_threads: number };
+}
+
+export interface NewsItem {
+  title: string;
+  link: string;
+  summary: string;
+  /** Unix seconds; null when the feed omitted a date. */
+  published: number | null;
+  source: string;
+}
+
+export interface NewsFeedStatus {
+  name: string;
+  url: string;
+  ok: boolean;
+  count: number;
+  error: string | null;
+}
+
+export interface NewsResponse {
+  items: NewsItem[];
+  feeds: NewsFeedStatus[];
+  fetched_at: number;
+  total: number;
 }
 
 export interface CuratorStatus {

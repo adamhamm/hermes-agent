@@ -94,6 +94,8 @@ export interface Translations {
     };
     nav: {
       analytics: string;
+      /** Optional — falls back to the English sidebar label. */
+      command?: string;
       chat: string;
       config: string;
       cron: string;
@@ -130,6 +132,72 @@ export interface Translations {
     /** Multi-profile host whose gateway boots standalone on a guard — optional, English fallback. */
     multiplexStandaloneBanner?: string;
     dismiss?: string;
+  };
+
+  // ── Command Center ── optional; missing keys fall back to English.
+  command?: {
+    title: string;
+    navLabel: string;
+    greetingMorning: string;
+    greetingAfternoon: string;
+    greetingEvening: string;
+    greetingNight: string;
+    systemsNominal: string;
+    systemsDegraded: string;
+    gatewayOnline: string;
+    gatewayOffline: string;
+    activeSessions: string;
+    activeJobs: string;
+    uptime: string;
+    vitals: string;
+    cpu: string;
+    memory: string;
+    disk: string;
+    load: string;
+    statsUnavailable: string;
+    jobs: string;
+    jobsEmpty: string;
+    createJob: string;
+    runNow: string;
+    pause: string;
+    resume: string;
+    nextRun: string;
+    filterAll: string;
+    filterActive: string;
+    filterPaused: string;
+    filterFailing: string;
+    healthRunning: string;
+    healthActive: string;
+    healthPaused: string;
+    healthFailing: string;
+    healthDone: string;
+    news: string;
+    newsEmpty: string;
+    newsUnavailable: string;
+    newsSearch: string;
+    newsAllSources: string;
+    newsFeedsHint: string;
+    sessions: string;
+    sessionsEmpty: string;
+    resumeSession: string;
+    activity: string;
+    activityEmpty: string;
+    actions: string;
+    actionChat: string;
+    actionJob: string;
+    actionModels: string;
+    actionSkills: string;
+    actionLogs: string;
+    actionSystem: string;
+    customize: string;
+    widgets: string;
+    autoRefresh: string;
+    refreshOff: string;
+    effects: string;
+    refreshAll: string;
+    lastSync: string;
+    viewAll: string;
+    actionFailed: string;
   };
 
   // ── Status page ──

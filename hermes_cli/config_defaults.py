@@ -1032,6 +1032,10 @@ DEFAULT_CONFIG = {
         # leaves disconnected sessions ``ended_at IS NULL`` forever — phantom "active" rows in /resume and
         # dashboards. See #65194.
         "startup_orphan_sweep": True,
+        # Command Center (/command) news ticker/panel feed list — RSS/Atom URLs, either bare
+        # strings or {"name", "url"} mappings. Empty = the built-in curated AI-news set baked
+        # into hermes_cli/web_routers/news.py (DEFAULT_NEWS_FEEDS).
+        "news_feeds": [],
         # OAuth gate (engaged when --host is set and --insecure is not), read by the Nous Portal
         # plugin. Env HERMES_DASHBOARD_OAUTH_CLIENT_ID / HERMES_DASHBOARD_PORTAL_URL win when
         # non-empty. Empty client_id = no provider; empty portal_url = production.
