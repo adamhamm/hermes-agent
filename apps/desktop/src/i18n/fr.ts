@@ -3778,6 +3778,8 @@ export const frOverrides = {
     nameLabel: 'Nom',
     namePlaceholder: 'Point du matin',
     promptLabel: 'Invite',
+    scriptLabel: "Script",
+    scriptBadge: "script",
     promptPlaceholder: 'Résumez mes fils Slack non lus et envoyez-moi les 5 principaux par email...',
     frequencyLabel: 'Fréquence',
     deliverLabel: 'Livrer vers',

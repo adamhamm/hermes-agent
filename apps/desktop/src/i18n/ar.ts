@@ -1978,6 +1978,8 @@ export const ar = defineLocale({
     nameLabel: 'الاسم',
     namePlaceholder: 'مثال: الملخص الصباحي',
     promptLabel: 'الرسالة',
+    scriptLabel: 'البرنامج النصي',
+    scriptBadge: 'برنامج نصي',
     promptPlaceholder: 'ماذا تريد من Hermes أن يفعل؟',
     frequencyLabel: 'التكرار',
     deliverLabel: 'التسليم',
