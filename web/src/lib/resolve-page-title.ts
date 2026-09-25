@@ -1,6 +1,6 @@
 import type { Translations } from "@/i18n/types";
 
-const BUILTIN: Record<string, keyof Translations["app"]["nav"]> = {
+const BUILTIN: Record<string, Exclude<keyof Translations["app"]["nav"], "command">> = {
   "/chat": "chat",
   "/sessions": "sessions",
   "/analytics": "analytics",
@@ -35,6 +35,9 @@ export function resolvePageTitle(
   const normalized = pathname.replace(/\/$/, "") || "/";
   if (normalized === "/") {
     return t.app.nav.sessions;
+  }
+  if (normalized === "/command") {
+    return t.command?.title ?? "Command Center";
   }
   const plugin = pluginTabs.find((p) => p.path === normalized);
   if (plugin) {
