@@ -147,7 +147,8 @@ npm test          # vitest
 
 Python tests: `tests/tui_gateway/` via `scripts/run_tests.sh`. TS tests: vitest in `ui-tui`. A
 Python test that asserts about `package.json` / `.ts` sources will not run on a JS-only PR — keep
-JS-side assertions in vitest (root testing rules). Root TypeScript style rules apply.
+JS-side assertions in vitest (root testing rules). TypeScript style: `apps/desktop/AGENTS.md` §
+TypeScript style.
 
 Related: `web/AGENTS.md` (dashboard embeds this TUI over a PTY), `apps/desktop/AGENTS.md` (own
 renderer on the same backend).

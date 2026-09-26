@@ -252,6 +252,18 @@ boundaries, optimistic rollback and stale-response ordering, and both sides of a
 local/remote adapter with its profile routing intact. Match how the suite is
 actually run rather than inventing a command; when in doubt, read the scripts.
 
+**Never read source code in tests** (root `AGENTS.md` § Testing has the general rule). A test
+that reads a `.ts`/`.tsx` file's text and regexes it tests the *shape of the source*, not
+behavior — it passes when the implementation is subtly broken and fails on correct refactors.
+Don't `fs.readFileSync('main.ts')` + `assert.match(source, /spawn\(...hiddenWindowsChildOptions/)`.
+Extract the logic into a pure/DI-testable function instead:
+```ts
+export function hiddenWindowsChildOptions(options = {}, isWindows = process.platform === 'win32') {
+  if (!isWindows || 'windowsHide' in options) return options
+  return { ...options, windowsHide: true }
+}
+```
+
 ## Rehearsing the guided onboarding
 
 From `apps/desktop`, use a fresh temporary directory for each rehearsal and run
@@ -273,6 +285,21 @@ before `npm run dev`. Stop Electron and its dev server after the run.
   locales?
 
 If any answer is "not sure," that's the part to go verify.
+
+## TypeScript style (desktop, TUI, website, future TS packages)
+
+Small nanostores over component state when state is shared or read by distant UI; each feature
+owns its atoms (chat near chat, shared in `src/store`); rendering components use `useStore`,
+non-rendering actions read `$atom.get()`; never thread state through three components when the
+leaf can subscribe; persistence sits beside the atom that owns it. Route roots stay thin
+(compose routes + shell, never controllers). No monolithic hooks — one narrow job each;
+colocated action modules over god hooks. Terse void form for side-effect callbacks
+(`onState={st => void setGatewayState(st)}`), explicit intent for async handlers
+(`onClick={() => void save()}`). Interfaces for public props and shared object shapes (not
+`type X = {...}`); extend React primitives (`React.ComponentProps<'button'>`, `Omit`, `Pick`).
+Table-driven beats condition ladders for ids/routes/views. `src/app` owns routes/pages,
+`src/store` shared atoms, `src/lib` pure helpers. Applies beyond desktop to `tui_gateway/`,
+`ui-tui/`, `web/`, and any future TS package.
 
 ## Nous free tier: state is pulled, never latched in the renderer
 

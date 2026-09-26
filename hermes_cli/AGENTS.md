@@ -112,6 +112,27 @@ set/get/unset <NAME>` route any bare name registered in `OPTIONAL_ENV_VARS` / `_
 - **Working directory:** CLI uses `os.getcwd()`; messaging uses `terminal.cwd`, bridged to
   `TERMINAL_CWD` for child tools.
 
+## Dependency Pinning Policy (mechanics)
+
+Policy/format rules (upper bounds, PyPI/git/GHA pinning shapes, `#2810`/`#9801`): root
+`AGENTS.md` § Dependency Pinning Policy. Mechanics live here:
+
+PM owns Hermes Python dependency changes. Use `pm.sync_venv(['extra'], explicit=True)`
+for declared runtime extras, `hermes pm install` for setup/sync, and `hermes pm repair`
+for damaged dependencies. Do not mutate Hermes environments with raw pip or uv.
+Use `pm.build_environment` for fresh build outputs and `pm.ensure_environment` for
+isolated tool environments. Callers receive an interpreter or tool path, not uv.
+Nix's declarative uv2nix builds and unrelated user projects remain independently owned.
+
+The `[tool.uv] exclude-newer = "14 days"` quarantine covers **Hermes's own dependencies only**
+(every registry package in core's `uv.lock`). Plugin `python_dependencies` follow the plugin's own
+policy: when PM generates the plugin workspace (`pm/workspace.py::_core_release_quarantine`) the
+global cutoff moves onto each core-locked package, so plugin-only packages are not filtered and a
+plugin still cannot drag a core package past the window. Teknium's ruling: "plugins dont have to
+abide by our 14 day rule … Only hermes' dependencies themselves have to." We recommend (not require)
+plugin authors adopt their own quarantine — the developer guide and `plugin-catalog/README.md` carry
+that guidance.
+
 ## Skin engine (`hermes_cli/skin_engine.py`)
 
 Skins are **pure data** (`SkinConfig`); no code change to add one. `init_skin_from_config()` reads
@@ -188,6 +209,13 @@ gateway-owned control socket (#92091); scans are the fallback layer for old/cras
 #92091 before adding any heuristic. Process identity rules (never argv substrings; canonical
 matchers; parser-derived flag sets; never blanket-exclude gateway ancestors, #87594): root
 `AGENTS.md` and `website/docs/developer-guide/cli-internals.md`.
+
+**Live Windows process-topology E2E (`wine2e` lane):** `windows-venv-e2e.yml` runs
+`tests/hermes_cli/test_venv_holder_windows_live.py` on a real `windows-latest` runner (real
+processes, no mocked psutil) ONLY on pushes to `wine2e/**` branches. Workflow: write probes
+pinning CORRECT behavior, push to `wine2e/` to reproduce live on unfixed code, fix, iterate to
+green, then open the PR with the live receipt. Assert against the gateway ANCESTOR found by
+argv, not the direct parent (the venv shim makes every spawn a launcher/worker chain).
 
 ## Profiles (multi-instance)
 
