@@ -246,6 +246,19 @@ gateway under the backend, and do NOT "fix" update locks by widening the tree-ki
   WebUI) pins its own home with `pin_process_hermes_home()`, and without a pin the resolver is
   `get_process_hermes_home()` unchanged. Do not add another routing decision that compares
   against `get_process_hermes_home()` directly; that resolver is for process-level assets.
+- **Binding points (root `AGENTS.md` states the invariant: one process may serve many profiles,
+  bind scope explicitly outside a turn).** `gateway/run.py::_profile_runtime_scope` (turn),
+  `tui_gateway/server.py::@_profile_scoped` + `model_switch.py::_session_profile_runtime_scope`
+  (RPC, teardown), `cron/scheduler_provider.py::_profile_cron_scope` (ticker),
+  `gateway/run_agent_cache.py::_run_release_in_profile_scope` (eviction). `os.environ`, module
+  globals and import-time values hold the *launch* profile's, so an unbound read is a silent
+  default-profile leak, never an error: home/config/`.env`-derived module constants are a bug
+  class — key by `hermes_home_key()` or resolve at call time. Needs binding: boot probes
+  (`check_fn`, MCP discovery, hooks), session end/eviction, tickers, deferred callbacks, RPC
+  methods, config readers, thread hops (`spawn_context_thread`), child spawns
+  (`served_profile_child_env`, never `os.environ.copy()`). Fail-closed reads exist only after
+  `set_multiplex_active(True)`. Prove live with two homes (A→B→A) under multiplex, not one temp
+  `HERMES_HOME`. Advisory lint: `scripts/check_profile_scope_patterns.py`.
 
 ## Tests
 
