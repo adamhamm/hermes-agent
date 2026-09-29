@@ -648,6 +648,35 @@ def test_launch_external_worker_pin_extends_the_sanitized_env_not_os_environ(
     assert "PYTHONPATH" not in worker_env_mod.pin_hermes_tree_on_pythonpath({}, repo_root)
 
 
+def test_pin_also_restores_the_committed_venvs_site_packages(tmp_path, monkeypatch):
+    """The sanitizer strips ALL Hermes-owned PYTHONPATH entries, including the venv
+    site-packages ``activate_dependencies`` put there at boot — but ``cron/jobs.py``'s own
+    import graph reaches third-party deps (``hermes_yaml`` -> ``ruamel.yaml``), so the pin
+    must restore site-packages too, or every cron job dies with ``ModuleNotFoundError``
+    before its ownership ack (found live: `important-mail` cron, 2026-09-29)."""
+    import cron.scheduler_worker_env as worker_env_mod
+
+    fake_site_packages = tmp_path / "fake-venv" / "lib" / "python3.14" / "site-packages"
+    fake_site_packages.mkdir(parents=True)
+    monkeypatch.setattr(worker_env_mod, "_installed_purelib", lambda: None)
+    monkeypatch.setattr(
+        worker_env_mod, "_committed_venv_site_packages", lambda repo_root: fake_site_packages,
+    )
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+
+    result = worker_env_mod.pin_hermes_tree_on_pythonpath({}, repo_root)
+    entries = result["PYTHONPATH"].split(os.pathsep)
+    assert entries[0] == str(repo_root)
+    assert str(fake_site_packages) in entries
+
+    # Unresolvable venv (developer checkout, Nix, sealed payload) degrades to repo-root-only —
+    # the pre-existing #112729 behavior, never a hard failure.
+    monkeypatch.setattr(worker_env_mod, "_committed_venv_site_packages", lambda repo_root: None)
+    result2 = worker_env_mod.pin_hermes_tree_on_pythonpath({}, repo_root)
+    assert result2["PYTHONPATH"] == str(repo_root)
+
+
 def test_shared_run_path_hands_gateway_fire_to_external_worker(monkeypatch):
     import cron.scheduler as scheduler
 
