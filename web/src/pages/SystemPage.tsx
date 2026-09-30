@@ -27,6 +27,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { QrCode } from "lucide-react";
+import * as QRCode from "qrcode";
+import { buildPairingPayload, pairingPayloadToJson } from "@/lib/pairingQr";
 import { Badge } from "@nous-research/ui/ui/components/badge";
 import { Button } from "@nous-research/ui/ui/components/button";
 import { Spinner } from "@nous-research/ui/ui/components/spinner";
@@ -532,6 +535,30 @@ export default function SystemPage() {
   // paste URLs that are the whole point — so we surface them as real,
   // copyable links rather than a log tail.
   const [shareRedact, setShareRedact] = useState(true);
+  const [pairingQrDataUrl, setPairingQrDataUrl] = useState<string | null>(null);
+  const [pairingError, setPairingError] = useState<string | null>(null);
+
+  const authRequired =
+    (window as unknown as { __HERMES_AUTH_REQUIRED__?: boolean }).__HERMES_AUTH_REQUIRED__ ??
+    false;
+  const sessionToken =
+    (window as unknown as { __HERMES_SESSION_TOKEN__?: string }).__HERMES_SESSION_TOKEN__ ?? "";
+
+  const generatePairingQr = useCallback(async () => {
+    setPairingError(null);
+    try {
+      const payload = buildPairingPayload(window.location.origin, sessionToken);
+      const dataUrl = await QRCode.toDataURL(pairingPayloadToJson(payload), {
+        errorCorrectionLevel: "M",
+        margin: 3,
+        width: 240,
+      });
+      setPairingQrDataUrl(dataUrl);
+    } catch (e) {
+      setPairingError(e instanceof Error ? e.message : "Failed to generate pairing QR");
+    }
+  }, [sessionToken]);
+
   const [sharing, setSharing] = useState(false);
   const [shareResult, setShareResult] = useState<DebugShareResponse | null>(
     null,
@@ -1578,6 +1605,39 @@ export default function SystemPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Mobile app pairing — loopback mode only, no static token exists to
+            embed once auth_required is true (Auth_Flow_Design.md §1). */}
+        {!authRequired && (
+          <Card>
+            <CardContent className="flex flex-col gap-3 py-4">
+              <div className="flex items-start gap-2">
+                <QrCode className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium">Pair the mobile app</span>
+                  <span className="text-xs text-muted-foreground max-w-prose">
+                    Scan this with the Hermes Client app to connect it to this gateway.
+                    The code contains this dashboard's address and session token — treat
+                    it like a password; don't screenshot-share it.
+                  </span>
+                </div>
+              </div>
+              <Button size="sm" onClick={() => void generatePairingQr()} className="w-fit">
+                Show pairing QR
+              </Button>
+              {pairingError && (
+                <span className="text-xs text-destructive">{pairingError}</span>
+              )}
+              {pairingQrDataUrl && (
+                <img
+                  src={pairingQrDataUrl}
+                  alt="Mobile pairing QR code"
+                  className="h-[240px] w-[240px] self-center"
+                />
+              )}
+            </CardContent>
+          </Card>
+        )}
       </section>
 
       {/* ── Checkpoints ───────────────────────────────────────────── */}
