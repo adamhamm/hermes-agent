@@ -311,3 +311,16 @@ contextvars. `upgrade_guest` (`hermes auth upgrade`), the CLI `/login` handler a
 promotion poller are renderers over it; a surface that needs the cancel check and the save to be
 atomic passes `persist_guard`. The desktop's plain "connect another Nous account" device-code login
 is a separate path (`_nous_plain_poller`) and must stay one.
+
+## Machine facts and resource lookup (`hermes_platform`)
+
+Machine facts and resource lookup go through `hermes_platform`. `hermes_platform.host` is
+the one answer for OS family, native architecture (`IsWow64Process2` → `platform.machine()` —
+never bare `PROCESSOR_ARCHITECTURE`, which reads AMD64 under x64-on-ARM64 emulation), CPU
+identity, and WSL/container/Termux; facts are cached per process with **no env-var input** (a
+hardware recognizer like `host/products.py` cannot be set from a shell). `host.*` answers only
+for the control host (where this Python runs), never the terminal execution target
+(SSH/container) or the Desktop client. A bare `shutil.which` or hand-written known-path table
+outside `hermes_platform/` fails `tests/test_managed_runtime_resolution.py` unless
+allowlisted; resolvers land in `hermes_platform/resolver/`. Lookup never installs, downloads,
+or starts anything.

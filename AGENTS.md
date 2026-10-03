@@ -170,25 +170,9 @@ Choose the highest (least-footprint) rung that solves the problem:
 ### Surface capability is a property of the SESSION, never of the process env
 
 A tool that works only because of *who is on the other end* (desktop panes, in-app browser,
-message reactions, Projects) resolves availability from the **session's own source**, never an
-env var on the backend. Client and backend are separate machines — the desktop app may drive a
-locally spawned backend, one over SSH, one behind URL+token, or Hermes Cloud, and only the first
-two carry `HERMES_DESKTOP=1`. An env-keyed gate is a silent no-op on the other topologies: the
-tool is stripped from the schema while the platform hint still tells the model it is "inside the
-Hermes desktop app". The pattern:
-
-- **The toolset is the surface gate.** Keep such tools off `_HERMES_CORE_TOOLS` and in a named
-  toolset (`desktop_ui`, `project`); the GUI gateway's `_load_enabled_toolsets(platform)` folds
-  it in when the session's platform says GUI. One resolver, every topology.
-- **`check_fn` answers reachability or opt-in, not surface.** "Is the bridge wired?" — fine.
-  "Was I spawned by Electron?" — not. `check_fn` results are TTL-cached process-wide
-  (`tools/registry.py`); a per-session answer does not belong there.
-- **Ask which identity you mean.** `HERMES_DESKTOP=1` legitimately means "this backend was
-  spawned by the app" (cron ticker, web-dist handling), NOT "a GUI is watching" — the embedded
-  terminal pane (`hermes --tui` against that backend) is the counterexample.
-
-Test: if the capability still makes sense with the client on another machine, it is
-session-scoped. Assert the GUI session gets the tool **with the env var absent**.
+message reactions, Projects) resolves availability from the session's own source, never an env
+var on the backend: keep it in a named toolset off `_HERMES_CORE_TOOLS`, and don't use
+`check_fn` for surface. Full rules and the test: `tools/AGENTS.md` § Surface capability.
 
 ## Development Environment
 
@@ -294,16 +278,10 @@ Every former god file is a **facade** (public entry points + names other package
   default-profile leak, never an error — home/config/`.env`-derived module constants are a bug
   class. Full binding-point list (turn, RPC, ticker, eviction, boot probes, thread hops, child
   spawns) and the advisory lint: `gateway/AGENTS.md` § Profile scope.
-- **Machine facts and resource lookup go through `hermes_platform`.** `hermes_platform.host` is
-  the one answer for OS family, native architecture (`IsWow64Process2` → `platform.machine()` —
-  never bare `PROCESSOR_ARCHITECTURE`, which reads AMD64 under x64-on-ARM64 emulation), CPU
-  identity, and WSL/container/Termux; facts are cached per process with **no env-var input** (a
-  hardware recognizer like `host/products.py` cannot be set from a shell). `host.*` answers only
-  for the control host (where this Python runs), never the terminal execution target
-  (SSH/container) or the Desktop client. A bare `shutil.which` or hand-written known-path table
-  outside `hermes_platform/` fails `tests/test_managed_runtime_resolution.py` unless
-  allowlisted; resolvers land in `hermes_platform/resolver/`. Lookup never installs, downloads,
-  or starts anything.
+- **Machine facts and resource lookup go through `hermes_platform`** (OS family, native arch,
+  CPU, WSL/container) — never bare `PROCESSOR_ARCHITECTURE`, `shutil.which`, or a hand-written
+  known-path table outside `hermes_platform/` (`tests/test_managed_runtime_resolution.py` fails
+  them). Full rules: `hermes_cli/AGENTS.md` § Machine facts.
 - **Argparse alias dispatch:** `add_parser("list", aliases=["ls"])` sets `dest` to the literal
   typed (`"ls"`). Dispatch must accept both (caught PTY-testing `hermes webhook ls`).
 - **Don't wire in dead code without E2E validation.** Unshipped code was dead for a reason; E2E
@@ -470,17 +448,17 @@ Testing as a habit of proof.
 
 | Area | Read | Covers |
 |---|---|---|
-| `run_agent.py`, `agent/` | `agent/AGENTS.md` | AIAgent + mixins, turn phases, caching integrity, compression, model/aux resolution |
-| `cli.py`, `hermes_cli/`, `main.py` | `hermes_cli/AGENTS.md` | CLI mixins, `_SLASH_DISPATCH`, slash registry, config + loaders, skins, update pipeline, profiles/multiplex |
-| `gateway/` | `gateway/AGENTS.md` | Adapters, message guards, streaming contract, notifications, gateway vs desktop lifecycle, token locks, scoped secrets |
-| `tools/`, `toolsets.py`, `model_tools.py` | `tools/AGENTS.md` | Adding tools, registry, toolsets, delegation, cross-tool references, backends |
-| `plugins/`, `hermes_cli/plugins*.py` | `plugins/AGENTS.md` | Plugin kinds, native compat contract, in-tree policy |
-| `plugin-catalog/` entries, catalog reviews | `plugin-catalog/README.md` (canonical admission rules), `website/docs/developer-guide/plugins/catalog-submission.md` (mirror + submission guide) | What a listed plugin may do; keep the two rule blocks identical |
-| `tui_gateway/`, `ui-tui/` | `tui_gateway/AGENTS.md` | Process model, JSON-RPC transport, key surfaces, slash flow, dev commands |
+| `run_agent.py`, `agent/` | `agent/AGENTS.md` | turn phases, caching integrity, compression, model/aux resolution |
+| `cli.py`, `hermes_cli/`, `main.py` | `hermes_cli/AGENTS.md` | slash registry, config loaders, skins, update pipeline, profiles |
+| `gateway/` | `gateway/AGENTS.md` | adapters, message guards, streaming, lifecycle, token locks, scoped secrets |
+| `tools/`, `toolsets.py`, `model_tools.py` | `tools/AGENTS.md` | adding tools, registry, toolsets, delegation, backends, surface-scoped capability |
+| `plugins/`, `hermes_cli/plugins*.py` | `plugins/AGENTS.md` | plugin kinds, compat contract, in-tree policy |
+| `plugin-catalog/` entries, catalog reviews | `plugin-catalog/README.md` (canonical admission rules), `website/docs/developer-guide/plugins/catalog-submission.md` (mirror + submission guide) | listed-plugin rules; keep the two rule blocks identical |
+| `tui_gateway/`, `ui-tui/` | `tui_gateway/AGENTS.md` | process model, JSON-RPC, key surfaces, slash flow |
 | `web/`, `hermes_cli/web_routers/` | `web/AGENTS.md` | Dashboard embeds the real TUI; what React may/may not rebuild |
-| `apps/desktop/` | `apps/desktop/AGENTS.md`, `apps/desktop/src/AGENTS.md` | Desktop judgment guide; `serve` backend, slash palette curation, Bot Mode chat, TypeScript style (repo-wide) |
+| `apps/desktop/` | `apps/desktop/AGENTS.md`, `apps/desktop/src/AGENTS.md` | judgment guide; `serve` backend, slash palette, Bot Mode chat, TS style |
 | `skills/`, `optional-skills/`, `agent/curator*.py` | `skills/AGENTS.md` | Frontmatter, HARDLINE authoring standards, curator |
-| `cron/`, kanban (`hermes_cli/kanban*.py`, `tools/kanban_tools.py`, `plugins/kanban/`) | `cron/AGENTS.md` | Scheduler invariants, job fields, kanban board/dispatcher |
+| `cron/`, kanban (`hermes_cli/kanban*.py`, `tools/kanban_tools.py`, `plugins/kanban/`) | `cron/AGENTS.md` | scheduler invariants, job fields, kanban |
 | `gateway/platforms/` new adapter | `gateway/platforms/ADDING_A_PLATFORM.md` | Step-by-step adapter guide |
 | profiles / multiplex / secret scope (any area) | `gateway/AGENTS.md` § Profile scope, `website/docs/user-guide/multi-profile-gateways.md` § What is isolated per profile | binding points, per-profile isolation |
 
