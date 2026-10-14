@@ -164,8 +164,14 @@ def test_handle_approve_mirrors_to_configured_external_provider(hermes_home, mon
     import hermes_cli.config as cfg
 
     c = cfg.load_config()
-    c.setdefault("memory", {})["provider"] = "holographic"
+    c.setdefault("memory", {})["provider"] = "recording"
     cfg.save_config(c)
+
+    # holographic left core for a catalog plugin; a recording fake keeps this test about the
+    # approve -> external-provider mirror, not about any one plugin being installed.
+    from tests.agent.test_memory_write_bridge import _RecordingProvider
+    provider = _RecordingProvider()
+    monkeypatch.setattr("plugins.memory.load_memory_provider", lambda name: provider)
 
     store = MemoryStore(); store.load_from_disk()
     wa.stage_write("memory", {"action": "add", "target": "memory", "content": "mirrored fact"},
@@ -173,15 +179,9 @@ def test_handle_approve_mirrors_to_configured_external_provider(hermes_home, mon
     out = handle_pending_subcommand(wa.MEMORY, ["approve", "all"], memory_store=store)
     assert "Approved 1" in out
 
-    from plugins.memory import load_memory_provider
-    mp = load_memory_provider("holographic")
-    mp.initialize(session_id="verify")
-    try:
-        result = json.loads(mp.handle_tool_call("fact_store", {"action": "search", "query": "mirrored fact"}))
-        assert result["count"] == 1
-        assert result["results"][0]["content"] == "mirrored fact"
-    finally:
-        mp.shutdown()
+    assert [(c["action"], c["target"], c["content"]) for c in provider.calls] == [
+        ("add", "memory", "mirrored fact"),
+    ]
 
 
 def test_handle_approve_skips_mirror_for_staged_batch_replace_on_target_error(hermes_home):
