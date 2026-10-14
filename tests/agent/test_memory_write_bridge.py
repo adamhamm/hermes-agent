@@ -232,13 +232,17 @@ def test_build_standalone_loads_and_initializes_configured_provider(monkeypatch,
 
     from hermes_cli import config as cfg
     c = cfg.load_config()
-    c.setdefault("memory", {})["provider"] = "holographic"
+    c.setdefault("memory", {})["provider"] = "recording"
     cfg.save_config(c)
+
+    # holographic left core for a catalog plugin, so a real bundled provider is not guaranteed
+    # here; drive the loader with the recording fake instead.
+    monkeypatch.setattr("plugins.memory.load_memory_provider", lambda name: _RecordingProvider())
 
     mgr = MemoryManager.build_standalone(session_id="s1")
     try:
         assert mgr is not None
-        assert [p.name for p in mgr.providers] == ["holographic"]
+        assert [p.name for p in mgr.providers] == ["recording"]
     finally:
         if mgr is not None:
             mgr.shutdown_all()
