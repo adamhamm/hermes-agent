@@ -153,6 +153,72 @@ def test_handle_approve_all(hermes_home):
     assert wa.pending_count("memory") == 0
     assert len(store.user_entries) == 2
 
+def test_handle_approve_mirrors_to_configured_external_provider(hermes_home, monkeypatch):
+    """#118xxx: /memory approve applied straight against a fresh on-disk store, bypassing
+    the agent loop's notify_memory_tool_write bridge entirely — an approved write reached
+    MEMORY.md/USER.md but never the configured external memory.provider. Regression for the
+    MemoryManager.build_standalone() fix in _approve()."""
+    from hermes_cli.write_approval_commands import handle_pending_subcommand
+    from tools.memory_tool import MemoryStore
+    from tools import write_approval as wa
+    import hermes_cli.config as cfg
+
+    c = cfg.load_config()
+    c.setdefault("memory", {})["provider"] = "holographic"
+    cfg.save_config(c)
+
+    store = MemoryStore(); store.load_from_disk()
+    wa.stage_write("memory", {"action": "add", "target": "memory", "content": "mirrored fact"},
+                   summary="mirrored fact", origin="foreground")
+    out = handle_pending_subcommand(wa.MEMORY, ["approve", "all"], memory_store=store)
+    assert "Approved 1" in out
+
+    from plugins.memory import load_memory_provider
+    mp = load_memory_provider("holographic")
+    mp.initialize(session_id="verify")
+    try:
+        result = json.loads(mp.handle_tool_call("fact_store", {"action": "search", "query": "mirrored fact"}))
+        assert result["count"] == 1
+        assert result["results"][0]["content"] == "mirrored fact"
+    finally:
+        mp.shutdown()
+
+
+def test_handle_approve_skips_mirror_for_staged_batch_replace_on_target_error(hermes_home):
+    """A batch op that isn't add/replace/remove (or a target error) must not attempt a mirror
+    call — only successfully-committed mutating ops reach the provider."""
+    from hermes_cli.write_approval_commands import handle_pending_subcommand
+    from tools.memory_tool import MemoryStore
+    from tools import write_approval as wa
+    import hermes_cli.config as cfg
+
+    c = cfg.load_config()
+    c.setdefault("memory", {})["provider"] = "holographic"
+    cfg.save_config(c)
+
+    store = MemoryStore(); store.load_from_disk()
+    # Bogus target -> apply fails, must not be counted as approved or mirrored.
+    wa.stage_write("memory", {"action": "add", "target": "not-a-real-target", "content": "x"},
+                   summary="x", origin="foreground")
+    out = handle_pending_subcommand(wa.MEMORY, ["approve", "all"], memory_store=store)
+    assert "Approved 0" in out
+    assert "Failed" in out
+
+
+def test_handle_approve_without_provider_configured_still_applies_locally(hermes_home):
+    """No memory.provider configured (the common case) must behave exactly as before —
+    build_standalone() returns None and the approve path is a no-op for mirroring."""
+    from hermes_cli.write_approval_commands import handle_pending_subcommand
+    from tools.memory_tool import MemoryStore
+    from tools import write_approval as wa
+    store = MemoryStore(); store.load_from_disk()
+    wa.stage_write("memory", {"action": "add", "target": "user", "content": "local only"},
+                   summary="local only", origin="foreground")
+    out = handle_pending_subcommand(wa.MEMORY, ["approve", "all"], memory_store=store)
+    assert "Approved 1" in out
+    assert store.user_entries == ["local only"]
+
+
 def test_handle_approve_surfaces_overwritten_entry(hermes_home):
     """#117952: on the /memory approve surface a partial-entry replace must show the
     approver the FULL entry it overwrote — the store's replaced_entries field used to be
